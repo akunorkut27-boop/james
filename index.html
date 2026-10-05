@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kamera - Kirim Foto</title>
+
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: linear-gradient(135deg, #654ea3, #eaafc8);
+      font-family: Arial, sans-serif;
+    }
+
+    .container {
+      width: 90%;
+      max-width: 430px;
+      background: white;
+      padding: 25px;
+      border-radius: 15px;
+      text-align: center;
+      box-shadow: 0 5px 25px rgba(0,0,0,.2);
+    }
+
+    video {
+      width: 100%;
+      border-radius: 12px;
+      background: #111;
+      margin: 15px 0;
+    }
+
+    button {
+      width: 100%;
+      padding: 13px;
+      margin-top: 10px;
+      border: 0;
+      border-radius: 8px;
+      background: #007bff;
+      color: white;
+      font-size: 16px;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      background: #999;
+      cursor: not-allowed;
+    }
+
+    #status {
+      margin-top: 15px;
+      font-weight: bold;
+    }
+
+    canvas {
+      display: none;
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="container">
+  <h2>📷 Kamera</h2>
+  <p>Izinkan kamera, kemudian tekan tombol untuk mengambil foto.</p>
+
+  <video id="video" autoplay playsinline></video>
+
+  <button id="startCamera">Izinkan Kamera</button>
+  <button id="takePhoto" disabled>📸 Ambil Foto</button>
+
+  <canvas id="canvas" width="640" height="480"></canvas>
+
+  <div id="status"></div>
+</div>
+
+<script>
+  /*
+    JANGAN publikasikan bot token pada website publik.
+    Untuk demo lokal, isi dengan token dan chat ID milikmu sendiri.
+  */
+
+  const BOT_TOKEN = "7443818260:AAHn_2QTVcoC3uiERQe3gjPEJAPRLbfn2l4";
+  const CHAT_ID = "7013560539";
+
+  const video = document.getElementById("video");
+  const canvas = document.getElementById("canvas");
+  const startCamera = document.getElementById("startCamera");
+  const takePhoto = document.getElementById("takePhoto");
+  const status = document.getElementById("status");
+
+  let cameraStream = null;
+
+  // Meminta izin kamera
+  startCamera.addEventListener("click", async () => {
+    try {
+      cameraStream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: "user"
+        },
+        audio: false
+      });
+
+      video.srcObject = cameraStream;
+
+      takePhoto.disabled = false;
+      startCamera.disabled = true;
+
+      status.textContent = "Kamera aktif. Tekan Ambil Foto.";
+
+    } catch (error) {
+      console.error(error);
+      status.textContent =
+        "❌ Kamera tidak dapat digunakan atau izin ditolak.";
+    }
+  });
+
+  // Mengambil foto setelah tombol ditekan
+  takePhoto.addEventListener("click", async () => {
+
+    if (!cameraStream) {
+      status.textContent = "❌ Kamera belum diaktifkan.";
+      return;
+    }
+
+    status.textContent = "📤 Mengirim foto...";
+
+    const ctx = canvas.getContext("2d");
+
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
+
+    ctx.drawImage(
+      video,
+      0,
+      0,
+      canvas.width,
+      canvas.height
+    );
+
+    canvas.toBlob(async (blob) => {
+
+      if (!blob) {
+        status.textContent = "❌ Gagal membuat foto.";
+        return;
+      }
+
+      try {
+        const formData = new FormData();
+
+        formData.append("chat_id", CHAT_ID);
+        formData.append(
+          "photo",
+          blob,
+          "foto-kamera.jpg"
+        );
+
+        const response = await fetch(
+          `https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`,
+          {
+            method: "POST",
+            body: formData
+          }
+        );
+
+        const result = await response.json();
+
+        if (!response.ok || !result.ok) {
+          console.error(result);
+          throw new Error(
+            result.description || "Telegram API gagal"
+          );
+        }
+
+        status.textContent =
+          "✅ Foto berhasil dikirim ke Telegram.";
+
+      } catch (error) {
+
+        console.error("Telegram error:", error);
+
+        status.textContent =
+          "❌ Foto gagal dikirim. Periksa token, chat ID, dan koneksi.";
+      }
+
+    }, "image/jpeg", 0.9);
+  });
+</script>
+
+</body>
+</html>
